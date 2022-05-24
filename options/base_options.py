@@ -22,16 +22,16 @@ class BaseOptions():
         self.parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
 
         # input/output sizes       
-        self.parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
-        self.parser.add_argument('--loadSize', type=int, default=1024, help='scale images to this size')
-        self.parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
-        self.parser.add_argument('--label_nc', type=int, default=35, help='# of input label channels')
-        self.parser.add_argument('--input_nc', type=int, default=3, help='# of input image channels')
-        self.parser.add_argument('--output_nc', type=int, default=3, help='# of output image channels')
+        self.parser.add_argument('--batchSize', type=int, default=4, help='input batch size')
+        self.parser.add_argument('--loadSize', type=int, default=800, help='scale images to this size')
+        self.parser.add_argument('--fineSize', type=int, default=800, help='then crop to this size')
+        self.parser.add_argument('--label_nc', type=int, default=0, help='# of input label channels')
+        self.parser.add_argument('--input_nc', type=int, default=1, help='# of input image channels')
+        self.parser.add_argument('--output_nc', type=int, default=1, help='# of output image channels')
 
         # for setting inputs
-        self.parser.add_argument('--dataroot', type=str, default='./datasets/cityscapes/') 
-        self.parser.add_argument('--resize_or_crop', type=str, default='scale_width', help='scaling and cropping of images at load time [resize_and_crop|crop|scale_width|scale_width_and_crop]')
+        self.parser.add_argument('--dataroot', type=str, default='./datasets/RemoveColor/')
+        self.parser.add_argument('--resize_or_crop', type=str, default='scale_width_and_crop', help='scaling and cropping of images at load time [resize_and_crop|crop|scale_width|scale_width_and_crop]')
         self.parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')        
         self.parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data argumentation') 
         self.parser.add_argument('--nThreads', default=2, type=int, help='# threads for loading data')                

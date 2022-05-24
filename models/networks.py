@@ -116,7 +116,10 @@ class VGGLoss(nn.Module):
         self.criterion = nn.L1Loss()
         self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]        
 
-    def forward(self, x, y):              
+    def forward(self, x, y):
+        if x.shape[1] == 1:
+            x = torch.cat([x, x, x], dim=1)
+            y = torch.cat([y, y, y], dim=1)
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         for i in range(len(x_vgg)):
