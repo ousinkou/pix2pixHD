@@ -1,6 +1,6 @@
 import torch
 from PIL import Image, ImageFilter
-from skimage import morphology, feature
+from skimage import morphology, measure
 from skimage.segmentation import flood_fill
 import torchvision.transforms as transforms
 from models.pix2pixHD_model import InferenceModel
@@ -33,8 +33,8 @@ def get_crop_bbox(mask_arr):
     return bbox
 
 
-def get_mask_whitebg(img_arr):
-    img_arr = (img_arr > 128).astype(np.uint8)*255
+def get_mask_whitebg(img_arr, line):
+    img_arr = (img_arr > line).astype(np.uint8)*255
     h, w= img_arr.shape[:2]
     img_tmp = np.ones((h+2, w+2))*255
     img_tmp[1:-1, 1:-1] = img_arr
@@ -42,17 +42,38 @@ def get_mask_whitebg(img_arr):
     mask_bin = (mask[1:-1, 1:-1] >= 0).astype(np.uint8)
     return mask_bin
 
-def skeleton(gray, line=128):
+
+def find_lagest_area(img_arr):
+    label_img, num = measure.label(img_arr, background=0,
+                                   return_num=True)
+
+    if num <= 1:
+        return img_arr
+
+    max_label = 0
+    max_num = 0
+    for i in range(1, num + 1):
+        num = np.sum(label_img == i)
+        if num > max_num:
+            max_num = num
+            max_label = i
+    res = (label_img == max_label).astype(np.uint8)
+    return res
+
+
+def skeleton(gray, line):
     binary = (gray < line).astype(np.uint8)
     skeleton0 = morphology.skeletonize(binary)
     skeleton = skeleton0.astype(np.uint8)*255
     return skeleton
 
-def sketch2edge(sketch_arr, binary_line):
+
+def sketch2edge(sketch_arr):
     # skeleton and set the line size 3
-    sk1_arr = skeleton(sketch_arr, binary_line)
+    sk1_arr = skeleton(sketch_arr, 224)
     sk1_pil = Image.fromarray(255-sk1_arr).filter(ImageFilter.MinFilter(size=3))
-    mask_bin = get_mask_whitebg(np.array(sk1_pil))
+    sk1_pil.save("./sk1_pil.png")
+    mask_bin = get_mask_whitebg(np.array(sk1_pil), 128)
 
     # Make the two edge sketch
     sk2_pil = sk1_pil.filter(ImageFilter.MinFilter(size=5))
@@ -87,7 +108,7 @@ class FoldModel(object):
         sketch_pil = sketch_pil.resize([800, 800])
         sketch_arr = np.array(sketch_pil)
 
-        sk2edge_arr, mask_arr = sketch2edge(sketch_arr, 224)
+        sk2edge_arr, mask_arr = sketch2edge(sketch_arr)
         sk2edge_pil = Image.fromarray(sk2edge_arr)
         #sk2edge_pil.save("sk2edge_pil.png")
         #Image.fromarray(mask_arr).save("mask.png")
@@ -110,9 +131,12 @@ class FoldModel(object):
         raw_size = img_pil.size
         res_img = Image.fromarray(
             np.ones((raw_size[1], raw_size[0]), dtype=np.uint8) * 255)
-        mask_bin = get_mask_whitebg(np.array(img_pil))
+        mask_bin = get_mask_whitebg(np.array(img_pil), 224)
+        mask_bin = find_lagest_area(mask_bin)
+        Image.fromarray(mask_bin*255).save("mask_bin.png")
         bbox = get_crop_bbox(mask_bin)
         img_pil_crop = img_pil.crop(bbox)
+        img_pil_crop.save("img_pil_crop.png")
         res_pil = self.predict_(img_pil_crop)
         res_img.paste(res_pil, bbox)
         return res_img
@@ -121,23 +145,23 @@ class FoldModel(object):
 def test_single():
     #img_path = "./20211119-142037A.png"
     #mask_path = "./20211119-142037A_mask.png"
-    img_path = "./image/test4.jpeg"
+    img_path = "/data/Dataset/sketch_test/svg2/23.jpeg"
     model = FoldModel()
     res_pil = model.predict(img_path)
-    res_pil.save('out.png')
+    res_pil.save('./out.png')
 
 
 def test_exp():
-    exp_name = "sketch_test_white"
+    exp_name = "svg2"
     os.makedirs(f"image/{exp_name}", exist_ok=True)
     base_path = f"/data/Dataset/sketch_test/{exp_name}"
-    imgs = os.listdir(f"{base_path}/sketch")
+    imgs = os.listdir(f"{base_path}")
 
     model = FoldModel()
     for img in imgs:
-        img_path = f"{base_path}/sketch/{img}"
+        img_path = f"{base_path}/{img}"
         res_img = model.predict(img_path)
         res_img.save(f"./image/{exp_name}/{img}")
 
-test_single()
-#test_exp()
+#test_single()
+test_exp()
