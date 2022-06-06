@@ -88,7 +88,7 @@ def sketch2edge(sketch_arr):
 
 class FoldModel(object):
     def __init__(self):
-        opt = Namespace(name='sketchshade0529', gpu_ids=[0], checkpoints_dir='./checkpoints', model='pix2pixHD',
+        opt = Namespace(name='sketchshade0602', gpu_ids=[0], checkpoints_dir='./checkpoints', model='pix2pixHD',
                         norm='instance', use_dropout=False, data_type=16, verbose=False, fp16=False,
                         local_rank=0, batchSize=1, loadSize=800, fineSize=800, label_nc=0, input_nc=1, output_nc=1,
                         resize_or_crop='resize', serial_batches=True, netG='global', ngf=64, n_downsample_global=4,
@@ -110,7 +110,7 @@ class FoldModel(object):
 
         sk2edge_arr, mask_arr = sketch2edge(sketch_arr)
         sk2edge_pil = Image.fromarray(sk2edge_arr)
-        #sk2edge_pil.save("sk2edge_pil.png")
+        sk2edge_pil.save("sk2edge_pil.png")
         #Image.fromarray(mask_arr).save("mask.png")
         img_tensor = self.trans(sk2edge_pil)
 
@@ -128,14 +128,18 @@ class FoldModel(object):
 
     def predict(self, img_path):
         img_pil = Image.open(img_path).convert('L')
+        img_pil_filter = img_pil.filter(ImageFilter.MinFilter(size=3))
         raw_size = img_pil.size
         res_img = Image.fromarray(
             np.ones((raw_size[1], raw_size[0]), dtype=np.uint8) * 255)
-        mask_bin = get_mask_whitebg(np.array(img_pil), 224)
+        mask_bin = get_mask_whitebg(np.array(img_pil_filter), 224)
         mask_bin = find_lagest_area(mask_bin)
         Image.fromarray(mask_bin*255).save("mask_bin.png")
         bbox = get_crop_bbox(mask_bin)
-        img_pil_crop = img_pil.crop(bbox)
+        # remove other rubbish
+        img_white = Image.fromarray(np.ones((raw_size[1], raw_size[0]), dtype=np.uint8)*255)
+        img_white.paste(img_pil, mask=Image.fromarray(mask_bin*255))
+        img_pil_crop = img_white.crop(bbox)
         img_pil_crop.save("img_pil_crop.png")
         res_pil = self.predict_(img_pil_crop)
         res_img.paste(res_pil, bbox)
@@ -143,18 +147,19 @@ class FoldModel(object):
 
 
 def test_single():
-    #img_path = "./20211119-142037A.png"
+    img_path = "/data/Dataset/sketch_test/svg2/22.jpeg"
     #mask_path = "./20211119-142037A_mask.png"
-    img_path = "/data/Dataset/sketch_test/svg2/23.jpeg"
+    #img_path = "/data/Dataset/sketch_test/svg2/23.jpeg"
     model = FoldModel()
     res_pil = model.predict(img_path)
     res_pil.save('./out.png')
 
 
 def test_exp():
+    #exp_name = "sketch_test_white"
     exp_name = "svg2"
     os.makedirs(f"image/{exp_name}", exist_ok=True)
-    base_path = f"/data/Dataset/sketch_test/{exp_name}"
+    base_path = f"/data/Dataset/sketch_test/{exp_name}" #/sketch
     imgs = os.listdir(f"{base_path}")
 
     model = FoldModel()
