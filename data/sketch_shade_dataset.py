@@ -11,8 +11,8 @@ from skimage import morphology
 def get_transforms(transform_variant, out_size):
     if transform_variant == "train":
         transform = A.Compose([
-            A.SmallestMaxSize(out_size),
-            A.RandomCrop(out_size, out_size),
+            #A.SmallestMaxSize(out_size),
+            A.Resize(out_size, out_size),
             A.Rotate(30, border_mode=cv2.BORDER_REFLECT101),
             A.HorizontalFlip(),
             A.Normalize((0.5), (0.5)),
@@ -64,15 +64,15 @@ class SketchShadeDataset(BaseDataset):
 
     def __getitem__(self, index):
         ### input A (label maps)
-        sketch_path = f"{self.root}/sketch2_edge/{self.A_paths[index]}.png"
+        sketch_path = f"{self.root}/sketch_2edge/{self.A_paths[index]}.png"
         sketch = np.array(Image.open(sketch_path).convert('L'))
 
         ### input B (real images)
         if self.opt.isTrain or self.opt.use_encoded_image:
-            shade_path = f"{self.root}/shade/{self.B_paths[index]}.jpg"
-            mask_path = f"{self.root}/mask/{self.B_paths[index]}.jpg"
+            shade_path = f"{self.root}/shade/{self.B_paths[index]}.png"
+            #mask_path = f"{self.root}/mask/{self.B_paths[index]}.jpg"
             shade = np.array(Image.open(shade_path).convert('L'))
-            mask = np.array(Image.open(mask_path).convert('L'))
+            #mask = np.array(Image.open(mask_path).convert('L'))
 
         trans = self.transform(image=sketch,
                                image1=shade)
