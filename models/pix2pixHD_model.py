@@ -5,6 +5,7 @@ from torch.autograd import Variable
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
+from focal_frequency_loss import FocalFrequencyLoss as FFL
 
 class Pix2PixHDModel(BaseModel):
     def name(self):
@@ -75,8 +76,8 @@ class Pix2PixHDModel(BaseModel):
             self.criterionFeat = torch.nn.L1Loss()
             if not opt.no_vgg_loss:             
                 self.criterionVGG = networks.VGGLoss(self.gpu_ids)
-            self.criterionTV = networks.TVLoss()
-                
+            #self.criterionTV = networks.TVLoss()
+            self.criterionFFL = FFL(loss_weight=1.0, alpha=1.0)
         
             # Names so we can breakout loss
             self.loss_names = self.loss_filter('G_GAN','G_GAN_Feat','G_VGG', 'G_TV', 'D_real', 'D_fake')
@@ -190,15 +191,20 @@ class Pix2PixHDModel(BaseModel):
         if not self.opt.no_vgg_loss:
             loss_G_VGG = self.criterionVGG(fake_image, real_image) * self.opt.lambda_feat
 
-        loss_G_TV = self.criterionTV(fake_image) * self.opt.lambda_feat
+        #loss_G_TV = self.criterionTV(fake_image)+networks.L1GradientMatchingLoss(fake_image, real_image)
+        loss_G_TV = self.criterionFFL(fake_image, real_image)
 
         # Only return the fake_B image if necessary to save BW
         return [ self.loss_filter( loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG, loss_G_TV, loss_D_real, loss_D_fake ), None if not infer else fake_image ]
 
-    def inference(self, label, inst, image=None):
-        # Encode Inputs        
+    def inference(self, label, inst=None, image=None):
+        # Encode Inputs
+        inst = Variable(inst) if image is not None else None
         image = Variable(image) if image is not None else None
-        input_label, inst_map, real_image, _ = self.encode_input(Variable(label), Variable(inst), image, infer=True)
+        #input_label, inst_map, real_image, _ = self.encode_input(Variable(label), inst, image, infer=True)
+        input_label = label.cuda()
+        inst_map = None
+        real_image = None
 
         # Fake Generation
         if self.use_features:
@@ -300,8 +306,10 @@ class Pix2PixHDModel(BaseModel):
         self.old_lr = lr
 
 class InferenceModel(Pix2PixHDModel):
-    def forward(self, inp):
-        label, inst = inp
-        return self.inference(label, inst)
+    def forward(self, label):
+        #label, inst = inp
+        with torch.no_grad():
+            res = self.inference(label)
+        return res
 
         

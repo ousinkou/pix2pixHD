@@ -81,7 +81,7 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
         ############### Backward Pass ####################
         # update generator weights
         optimizer_G.zero_grad()
-        if opt.fp16:                                
+        if opt.fp16:
             with amp.scale_loss(loss_G, optimizer_G) as scaled_loss: scaled_loss.backward()                
         else:
             loss_G.backward()          

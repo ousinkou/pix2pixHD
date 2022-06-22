@@ -435,3 +435,17 @@ class TVLoss(nn.Module):
 
     def _tensor_size(self,t):
         return t.size()[1]*t.size()[2]*t.size()[3]
+
+
+
+def L1GradientMatchingLoss(log_prediction, log_gt):
+    N = log_prediction.numel()
+    log_diff = log_prediction - log_gt
+
+    v_gradient = torch.abs(log_diff[:, :, 0:-2, :] - log_diff[:, :, 2:, :])
+    h_gradient = torch.abs(log_diff[:, :, :, 0:-2] - log_diff[:, :, :, 2:])
+
+    gradient_loss = (torch.sum(h_gradient) + torch.sum(v_gradient)) / 2.0
+    gradient_loss = gradient_loss / N
+
+    return gradient_loss

@@ -1,13 +1,14 @@
-import torch
+from run_engine import run_onnx
 from PIL import Image, ImageFilter
 from skimage import morphology, measure
 from skimage.segmentation import flood_fill
 import torchvision.transforms as transforms
-from models.pix2pixHD_model import InferenceModel
 import numpy as np
 from argparse import Namespace
 import os
-import time
+import torch
+from run_engine import get_engine
+import common
 
 def tensor2im(image_tensor, imtype=np.uint8, normalize=True):
     image_numpy = image_tensor.detach().cpu().float().numpy()
@@ -89,20 +90,15 @@ def sketch2edge(sketch_arr):
 
 class FoldModel(object):
     def __init__(self):
-        opt = Namespace(name='avg', gpu_ids=[0], checkpoints_dir='./checkpoints', model='pix2pixHD',
-                        norm='instance', use_dropout=False, data_type=16, verbose=False, fp16=False,
-                        local_rank=0, batchSize=1, loadSize=800, fineSize=800, label_nc=0, input_nc=1, output_nc=1,
-                        resize_or_crop='resize', serial_batches=True, netG='global', ngf=64, n_downsample_global=4,
-                        n_blocks_global=9, n_blocks_local=3, n_local_enhancers=1, niter_fix_global=0, no_instance=True,
-                        instance_feat=False, label_feat=False, feat_num=3, load_features=False, n_downsample_E=4, nef=16,
-                        n_clusters=10, aspect_ratio=1.0, phase='test', which_epoch='40', how_many=-1,
-                        cluster_path='features_clustered_010.npy', use_encoded_image=False,  isTrain=False)
-        self.model = InferenceModel()
-        self.model.initialize(opt)
-        self.model.half()
+        onnx_file = "./checkpoints/onnx/20_net_G.onnx"
+        #engine_file_path = os.path.splitext(onnx_file)[0] + ".trt"
+        engine_file_path = "./checkpoints/onnx/20_net_G32.trt"
+        self.engine = get_engine(onnx_file, engine_file_path, True)
         self.trans = transforms.Compose([transforms.ToTensor(),
                                          transforms.Normalize((0.5),
                                                               (0.5))])
+
+
 
     def predict_(self, sketch_pil):
         raw_size = sketch_pil.size
@@ -117,14 +113,25 @@ class FoldModel(object):
 
         label_tensor = img_tensor.unsqueeze(0).half()
         inst_tensor = torch.Tensor([0.])
-        img_tensor = torch.Tensor([0.])
+        #img_tensor = torch.Tensor([0.])
 
-        beg = time.time()
-        res_tensor = self.model.inference(label_tensor, inst_tensor, img_tensor)
-        end = time.time()
-        print(end - beg)
+        #res_tensor = self.model.inference(label_tensor, inst_tensor, img_tensor)
+        label_numpy = label_tensor.detach().numpy()
+        # Convert the image to row-major order, also known as "C order":
+        label_numpy = np.array(label_numpy, dtype=np.float16, order="C")
 
-        res_arr = tensor2im(res_tensor[0])
+        with self.engine.create_execution_context() as context:
+            inputs, outputs, bindings, stream = common.allocate_buffers(self.engine)
+            # Set host input to the image. The common.do_inference function will copy the input to the GPU before executing.
+            inputs[0].host = label_numpy
+            res_tensor = common.do_inference_v2(context, bindings=bindings,
+                                                 inputs=inputs, outputs=outputs,
+                                                 stream=stream)
+
+
+        res_arr = res_tensor[0].reshape(1, 1, 800, 800)[0][0]
+        res_arr = (res_arr + 1) / 2.0 * 255.0
+        res_arr = np.clip(res_arr, 0, 255).astype(np.uint8)
 
         mask_arr_bin = (mask_arr > 128).astype(np.uint8)
         res_arr = res_arr * mask_arr_bin + (1 - mask_arr_bin) * 255
@@ -154,13 +161,10 @@ class FoldModel(object):
 def test_single():
     #img_path = "/home/ubuntu/桌面/test2.jpeg"
     #mask_path = "./20211119-142037A_mask.png"
-    img_path = "/data/Dataset/sketch_test/svg2/25.jpeg"
+    img_path = "/data/Dataset/sketch_test/svg2/23.jpeg"
     model = FoldModel()
-    import time
-    beg = time.time()
+
     res_pil = model.predict(img_path)
-    end = time.time()
-    print(end - beg)
     res_pil.save('./out.png')
 
 
@@ -172,10 +176,14 @@ def test_exp():
     imgs = os.listdir(f"{base_path}")
 
     model = FoldModel()
+    import time
     for img in imgs:
         img_path = f"{base_path}/{img}"
+        beg = time.time()
         res_img = model.predict(img_path)
+        end = time.time()
+        print(end - beg)
         res_img.save(f"./image/{exp_name}/{img}")
 
-#test_single()
-test_exp()
+test_single()
+#test_exp()

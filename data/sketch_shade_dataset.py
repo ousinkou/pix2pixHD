@@ -11,8 +11,8 @@ from skimage import morphology
 def get_transforms(transform_variant, out_size):
     if transform_variant == "train":
         transform = A.Compose([
-            #A.SmallestMaxSize(out_size),
-            A.Resize(out_size, out_size),
+            A.SmallestMaxSize(out_size),
+            A.RandomCrop(out_size, out_size),
             A.Rotate(30, border_mode=cv2.BORDER_REFLECT101),
             A.HorizontalFlip(),
             A.Normalize((0.5), (0.5)),
@@ -37,7 +37,7 @@ class SketchShadeDataset(BaseDataset):
 
         ### input A (label maps)
         if opt.phase == "test":
-            self.A_paths = os.listdir(f"{self.root}")
+            self.A_paths = json.load(open(f"{self.root}/val.lst"))
         else:
             self.A_paths = json.load(open(f"{self.root}/train.lst"))
         self.A_paths = [os.path.splitext(p)[0] for p in self.A_paths]
@@ -73,12 +73,15 @@ class SketchShadeDataset(BaseDataset):
             #mask_path = f"{self.root}/mask/{self.B_paths[index]}.jpg"
             shade = np.array(Image.open(shade_path).convert('L'))
             #mask = np.array(Image.open(mask_path).convert('L'))
-
-        trans = self.transform(image=sketch,
-                               image1=shade)
-
-        input_dict = {'label': trans["image"], 'inst': 0, 'image': trans["image1"],
-                      'feat': 0, 'path': sketch_path}
+            trans = self.transform(image=sketch,
+                                   image1=shade)
+            input_dict = {'label': trans["image"], 'inst': 0,
+                          'image': trans["image1"],
+                          'feat': 0, 'path': sketch_path}
+        else:
+            trans = self.transform(image=sketch)
+            input_dict = {'label': trans["image"], 'inst': 0, 'image': 0,
+                          'feat': 0, 'path': sketch_path}
 
         return input_dict
 

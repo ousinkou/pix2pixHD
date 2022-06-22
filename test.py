@@ -1,3 +1,15 @@
+"""
+example:
+python test.py
+--no_instance
+--name=sketchshade0529
+--which_epoch=20
+--dataroot=/data1/ClothSketch/new
+--data_type=16
+--export_onnx=./checkpoints/onnx/20_net_G.onnx
+"""
+
+
 import os
 from collections import OrderedDict
 from torch.autograd import Variable
@@ -29,7 +41,7 @@ if not opt.engine and not opt.onnx:
         model.half()
     elif opt.data_type == 8:
         model.type(torch.uint8)
-            
+    #model.eval()
     if opt.verbose:
         print(model)
 else:
@@ -47,8 +59,9 @@ for i, data in enumerate(dataset):
     if opt.export_onnx:
         print ("Exporting to ONNX: ", opt.export_onnx)
         assert opt.export_onnx.endswith("onnx"), "Export model file should end with .onnx"
-        torch.onnx.export(model, [data['label'], data['inst']],
-                          opt.export_onnx, verbose=True)
+        torch.onnx.export(model,  data['label'],
+                          opt.export_onnx, verbose=True
+                          )
         exit(0)
     minibatch = 1 
     if opt.engine:
